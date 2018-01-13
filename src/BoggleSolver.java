@@ -1,7 +1,5 @@
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 
 public class BoggleSolver {
@@ -9,68 +7,66 @@ public class BoggleSolver {
     private static final int[] SCORE = { 0, 0, 0, 1, 1, 2, 3, 5, 11 };
 
     private final int[] bt;
-    private final Map<Integer, String> btWords;
+    private final HashMap<Integer, String> btWords;
 
     private int[] tst;
-    private String[] tstWords;
-    private int root, next;
-
+    private final String[] tstWords;
+   
     public BoggleSolver(String[] dictionary) {
-        int dictLen = dictionary.length;
-        String[] words = new String[dictLen];
-
-        int dictPos = 0, dictEnd = 0, btEnd = 0;
-        while (dictEnd < dictLen) {
-            for (dictEnd = dictPos; dictEnd < dictLen; ++dictEnd) {
-                String word = dictionary[dictEnd];
-                int len = word.length();
-                if (len < 3)
-                    break;
-                boolean isValid = true;
-                int d = word.indexOf('Q', 0);
-                while (d != -1) {
-                    if (d + 1 == len || word.charAt(d + 1) != 'U') {
-                        isValid = false;
-                        break;
-                    } else d = word.indexOf('Q', d + 1);
-                }
-                if (!isValid)
-                    break;
-            }
-            if (dictEnd > dictPos) {
-                int len = dictEnd - dictPos;
-                System.arraycopy(dictionary, dictPos, words, btEnd, len);
-                dictPos += len;
-                btEnd += len;
-            } else ++dictPos;
+        String[] words = new String[dictionary.length + 1];
+        System.arraycopy(dictionary, 0, words, 1, dictionary.length);
+        int n = removeIfShorterThan3OrInvalid(words, dictionary.length);
+        int cap = 3 * (countIfShorterThan6(words, n) >> 1);
+        bt = new int[896807];
+        btWords = new HashMap<>(cap);
+        btAdd(bt, btWords, words, n);
+        n = removeIfShorterThan6(words, n);
+        cap = Integer.highestOneBit(n) << 5;
+        tst = new int[cap];
+        tstWords = words;
+        tstAdd(tst, words, n);
+    }
+    
+    private static int removeIfShorterThan3OrInvalid(String[] words, int n) {
+        int j = 1;
+        for (int i = 1; i < n; ++i) {
+            String word = words[i];
+            if (word.length() >= 3 && isValid(word))
+                words[j++] = word;
         }
-
-        // int btEnd = 0;
-        int btCount = 0;
-        // for (int i = 0; i < dictlen; ++i) {
-        // String word = dictionary[i];
-        // int len = word.length();
-        // if (len > 2) {
-        // boolean isValid = true;
-        // int d = word.indexOf('Q', 0);
-        // while (d != -1) {
-        // if (d + 1 == len || word.charAt(d + 1) != 'U') {
-        // isValid = false;
-        // break;
-        // } else d = word.indexOf('Q', d + 1);
-        // }
-        // if (isValid) {
-        // System.arraycopy(dictionary, 0, words, 0, 30);
-        // words[btEnd++] = word;
-        // if (len < 6)
-        // ++btCount;
-        // }
-        // }
-        // }
-
-        int[] bt = new int[896807];
-        Map<Integer, String> btWords = new HashMap<>(btCount << 1);
-        for (int i = 0; i < btEnd; ++i) {
+        return j;
+    }
+    
+    private static int removeIfShorterThan6(String[] words, int n) {
+        int j = 1;
+        for (int i = 1; i < n; ++i) {
+            String word = words[i];
+            if (word.length() >= 6)
+                words[j++] = word;
+        }
+        return j;
+    }
+    
+    private static int countIfShorterThan6(String[] words, int n) {
+        int count = 0;
+        for (int i = 1; i < n; ++i)
+            if (words[i].length() < 6)
+                ++count;
+        return count;
+    }
+    
+    private static boolean isValid(String word) {
+        int i = 0, last = word.length() - 1;
+        while (i < last)
+            if (word.charAt(i++) == 'Q')
+                if (i < last && word.charAt(i++) != 'U')
+                    return false;
+        return true;
+    }
+    
+    private static void btAdd
+    (int[] bt, HashMap<Integer, String> btWords, String[] words, int n) {
+        for (int i = 1; i < n; ++i) {
             String word = words[i];
             int d = 0, x = 0, len = word.length();
             for (int j = 0; j < 5 && d < len; ++j) {
@@ -82,57 +78,62 @@ public class BoggleSolver {
             if (d == len)
                 btWords.put(x, word);
         }
-        this.bt = bt;
-        this.btWords = btWords;
-
-        int tstEnd = 0;
-        for (int i = 0; i < btEnd; ++i) {
-            String word = words[i];
-            if (word.length() > 5)
-                words[tstEnd++] = word;
-        }
-
-        int cap = Integer.highestOneBit(tstEnd) << 2;
-        int[] tst = new int[cap];
-        String[] tstWords = new String[cap];
+    }
+    
+    private static void tstAdd(int[] tst, String[] words, int n) {
+        if (n <= 1) return;
+        int root = (1 + n >> 1);
+        int next = tstAdd(tst, words, 0, root, 4);
         int[] stack = new int[64];
-        stack[1] = tstEnd;
-        int root = 0, next = 4, top = 2;
+        stack[0] = n;
+        stack[1] = root + 1;
+        stack[2] = root;
+        stack[3] = 1;
+        int top = 4;
         while (top != 0) {
-            int hi = stack[--top];
             int lo = stack[--top];
+            int hi = stack[--top];
             if (lo < hi) {
-                int mid = lo + hi >> 1;
-                char[] word = words[mid].toCharArray();
-                int d = 0, x = root;
-                while (true) {
-                    char c = word[d];
-                    if (x == 0) {
-                        if (next == cap) {
-                            cap <<= 1;
-                            tst = Arrays.copyOf(tst, cap);
-                            tstWords = Arrays.copyOf(tstWords, cap);
-                        }
-                        x = next;
-                        next += 4;
-                        tst[x] = c;
-                    }
-                    int cmp = c - (char) tst[x];
-                    if (cmp < 0) {
-
-                    }
-                    break;
-                }
-                stack[top++] = lo;
-                stack[top++] = mid;
-                stack[top++] = mid + 1;
+                int mid = (lo + hi >> 1);
+                
+                next = tstAdd(tst, words, 4, mid, next);
                 stack[top++] = hi;
+                stack[top++] = mid + 1;
+                stack[top++] = mid;
+                stack[top++] = lo;
             }
         }
-        this.tst = tst;
-        this.tstWords = tstWords;
+        assert Boolean.TRUE;
     }
-
+    
+    private static int tstAdd
+    (int[] tst, String[] words, int x, int mid, int next) {
+        String word = words[mid];
+        int len = word.length();
+        int d = 0, p = 0;
+        while (x != 0) {
+            char c = word.charAt(d);
+            int cmp = c - (tst[x] & 0xff);
+            p = x | Integer.signum(cmp) + 2;
+            if (cmp == 0)
+                d += c == 'Q' ? 2 : 1;
+            if (d < len)
+                x = tst[p];
+            else break;
+        }
+        while (d < len) {
+            char c = word.charAt(d);
+            x = next;
+            tst[p] = x;
+            tst[x] = c;
+            p = next | 2;
+            d += c == 'Q' ? 2 : 1;
+            next += 4;
+        }
+        tst[x] |= mid << 8;
+        return next;
+    }
+    
     public Iterable<String> getAllValidWords(BoggleBoard board) {
         return new WordFinder(board).getAllValidWords();
     }

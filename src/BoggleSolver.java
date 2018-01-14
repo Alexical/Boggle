@@ -2,10 +2,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 
+import edu.princeton.cs.algs4.StdIn;
+import edu.princeton.cs.algs4.StdOut;
+
 public class BoggleSolver {
 
     private static final int[] SCORE = { 0, 0, 0, 1, 1, 2, 3, 5, 11 };
-    private static final int[] TRAY4x4 = computeTray(4, 4);
+    private static final int[] TRAY44 = computeTray(4, 4);
     private static final Object PRESENT = new Object();
     
     private final String[] words;
@@ -31,12 +34,19 @@ public class BoggleSolver {
     }
     
     private static boolean isValid(String word) {
-        int i = 0, last = word.length() - 1;
-        while (i < last)
+        int i = 0, len = word.length();
+        while (i < len)
             if (word.charAt(i++) == 'Q')
-                if (i < last && word.charAt(i++) != 'U')
+                if (i == len || word.charAt(i++) != 'U')
                     return false;
         return true;
+    }
+    
+    public static void main(String[] args) {
+        while (StdIn.hasNextLine()) {
+            String word = StdIn.readLine();
+            StdOut.println(isValid(word));
+        }
     }
     
     private static HashMap<String, Object>
@@ -62,7 +72,7 @@ public class BoggleSolver {
                 int lo = stack[--top];
                 int hi = stack[--top];
                 if (lo < hi) {
-                    int mid = (lo + hi >> 1);
+                    int mid = (lo + hi >>> 1);
                     next = tstAdd(tst, words, 4, mid, next);
                     stack[top++] = hi;
                     stack[top++] = mid + 1;
@@ -74,13 +84,13 @@ public class BoggleSolver {
         return tst;
     }
     
-    private static int tstAdd
-    (int[] tst, String[] words, int x, int mid, int next) {
+    private static int
+    tstAdd(int[] tst, String[] words, int x, int mid, int next) {
         String word = words[mid];
         int len = word.length();
         int d = 0, p = 2;
         while (x != 0) {
-            int c = word.charAt(d); // TODO
+            int c = word.charAt(d);
             int cmp = c - (tst[x] & 0xff);
             p = x | Integer.signum(cmp) + 2;
             if (cmp == 0)
@@ -140,7 +150,7 @@ public class BoggleSolver {
     public Iterable<String> getAllValidWords(BoggleBoard board) {
         int rows = board.rows();
         int cols = board.cols();
-        int[] tray = TRAY4x4;
+        int[] tray = TRAY44;
         if (rows != 4 || cols != 4)
             tray = computeTray(rows, cols);
         int[] letters = new int[rows * cols];
@@ -163,16 +173,15 @@ public class BoggleSolver {
                 int top = 0;
                 stack[0] = i << 4;
                 stack[1] = i;
-                stack[2] = c;
-                stack[3] = x;
+                stack[2] = x;
                 marked[i] = true;
                 while (top >= 0) {
                     int w = tray[stack[top]];
                     if (w != -1) {
-                        ++stack[top | 0];
+                        ++stack[top];
                         if (!marked[w]) {
                             c = letters[w];
-                            x = get(stack[top | 3], c);
+                            x = get(stack[top | 2], c);
                             if (x != 0) {
                                 int q = tst[x] >>> 8;
                                 if (q != 0) {
@@ -181,19 +190,14 @@ public class BoggleSolver {
                                         list.add(word);
                                 }
                                 top += 4;
-                                stack[top | 0] = w << 4;
+                                stack[top] = w << 4;
                                 stack[top | 1] = w;
-                                stack[top | 2] = c;
-                                stack[top | 3] = x;
+                                stack[top | 2] = x;
                                 marked[w] = true;
                             }
                         }
                     } else {
                         marked[stack[top | 1]] = false;
-                        stack[top | 3] = 0; // TODO
-                        stack[top | 2] = 0; // TODO
-                        stack[top | 1] = 0; // TODO
-                        stack[top | 0] = 0; // TODO
                         top -= 4;
                     }
                 }

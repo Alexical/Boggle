@@ -1,62 +1,33 @@
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 
 public class BoggleSolver {
 
     private static final int[] SCORE = { 0, 0, 0, 1, 1, 2, 3, 5, 11 };
     private static final int[] TRAY4x4 = computeTray(4, 4);
     private static final Object PRESENT = new Object();
-    private static final int ABSENT = 0;
-    private static final int PREFIX = 1;
-    private static final int WORD = 2;
     
-    private HashMap<String, Object> wordMap;
-    
-    private int[] bt;
-    private HashMap<Integer, String> btWords;
-
-    private int[] tst;
-    private String[] tstWords;
+    private final String[] words;
+    private final HashMap<String, Object> wordMap;
+    private final int[] tst;
 
     public BoggleSolver(String[] dictionary) {
         int n = dictionary.length;
-        String[] words = new String[n + 1];
-        System.arraycopy(dictionary, 0, words, 1, n);
-        n = removeIfShorterThan3OrInvalid(words, n);
-        initializeWordMap(words, n);
-        initializeBt(words, n);
-        n = removeIfShorterThan6(words, n);
-        initializeTst(words, n);
+        words = new String[n + 1];
+        n = copyIfValid(dictionary, words, n);
+        wordMap = initializeWordMap(words, n);
+        tst = initializeTst(words, n);
     }
     
-    private static int removeIfShorterThan3OrInvalid(String[] words, int n) {
+    private static int copyIfValid(String[] src, String[] dest, int n) {
         int j = 1;
         for (int i = 1; i < n; ++i) {
-            String word = words[i];
+            String word = src[i];
             if (word.length() >= 3 && isValid(word))
-                words[j++] = word;
+                dest[j++] = word;
         }
         return j;
-    }
-    
-    private static int removeIfShorterThan6(String[] words, int n) {
-        int j = 1;
-        for (int i = 1; i < n; ++i) {
-            String word = words[i];
-            if (word.length() >= 6)
-                words[j++] = word;
-        }
-        return j;
-    }
-    
-    private static int countIfShorterThan6(String[] words, int n) {
-        int count = 0;
-        for (int i = 1; i < n; ++i)
-            if (words[i].length() < 6)
-                ++count;
-        return count;
     }
     
     private static boolean isValid(String word) {
@@ -68,59 +39,46 @@ public class BoggleSolver {
         return true;
     }
     
-    private void initializeWordMap(String[] words, int n) {
-        wordMap = new HashMap<>(3 * (n >> 1));
+    private static HashMap<String, Object>
+    initializeWordMap(String[] words, int n) {
+        HashMap<String, Object> map = new HashMap<>(3 * (n >> 1));
         for (int i = 1; i < n; ++i)
-            wordMap.put(words[i], PRESENT);
+            map.put(words[i], PRESENT);
+        return map;
     }
     
-    private void initializeBt(String[] words, int n) {
-        bt = new int[896807];
-        btWords = new HashMap<>(3 * (countIfShorterThan6(words, n) >> 1));
-        for (int i = 1; i < n; ++i) {
-            String word = words[i];
-            int d = 0, x = 0, len = word.length();
-            for (int j = 0; j < 5 && d < len; ++j) {
-                int c = word.charAt(d);
-                x = 27 * x + (c & 0x1f);
-                bt[x >> 4] |= (d < len ? PREFIX : WORD) << (x << 1);
-                d += c == 'Q' ? 2 : 1;
-            }
-            if (d == len)
-                btWords.put(x, word);
-        }
-    }
-    
-    private void initializeTst(String[] words, int n) {
-        tst = new int[Integer.highestOneBit(n) << 5];
-        tstWords = words;
-        if (n <= 1) return;
-        int root = (1 + n >> 1);
-        int next = tstAdd(0, root, 4);
-        int[] stack = new int[64];
-        stack[0] = n;
-        stack[1] = root + 1;
-        stack[2] = root;
-        stack[3] = 1;
-        int top = 4;
-        while (top != 0) {
-            int lo = stack[--top];
-            int hi = stack[--top];
-            if (lo < hi) {
-                int mid = (lo + hi >> 1);
-                next = tstAdd(4, mid, next);
-                stack[top++] = hi;
-                stack[top++] = mid + 1;
-                stack[top++] = mid;
-                stack[top++] = lo;
+    private static int[] initializeTst(String[] words, int n) {
+        int[] tst = new int[Integer.highestOneBit(n) << 5];
+        if (n > 1) {
+            int root = (1 + n >> 1);
+            int next = tstAdd(tst, words, 0, root, 4);
+            int[] stack = new int[64];
+            stack[0] = n;
+            stack[1] = root + 1;
+            stack[2] = root;
+            stack[3] = 1;
+            int top = 4;
+            while (top != 0) {
+                int lo = stack[--top];
+                int hi = stack[--top];
+                if (lo < hi) {
+                    int mid = (lo + hi >> 1);
+                    next = tstAdd(tst, words, 4, mid, next);
+                    stack[top++] = hi;
+                    stack[top++] = mid + 1;
+                    stack[top++] = mid;
+                    stack[top++] = lo;
+                }
             }
         }
+        return tst;
     }
     
-    private int tstAdd(int x, int mid, int next) {
-        String word = tstWords[mid];
+    private static int tstAdd
+    (int[] tst, String[] words, int x, int mid, int next) {
+        String word = words[mid];
         int len = word.length();
-        int d = 0, p = 0;
+        int d = 0, p = 2;
         while (x != 0) {
             int c = word.charAt(d); // TODO
             int cmp = c - (tst[x] & 0xff);
@@ -142,6 +100,17 @@ public class BoggleSolver {
         }
         tst[x] |= mid << 8;
         return next;
+    }
+    
+    private int get(int x, int c) {
+        x = tst[x | 2];
+        while (x != 0) {
+            int cmp = c - (tst[x] & 0xff);
+            if (cmp != 0)
+                x = tst[x | Integer.signum(cmp) + 2];
+            else break;
+        }
+        return x;
     }
     
     private static int[] computeTray(int rows, int cols) {
@@ -182,56 +151,51 @@ public class BoggleSolver {
     }
     
     private Iterable<String> findWords(int[] tray, int[] letters) {
-        ArrayList<String> list = new ArrayList<>();
-        HashMap<String, Object> map = new HashMap<>();
-        int n = tray.length;
+        ArrayList<String> list = new ArrayList<>(1 << 9);
+        HashMap<String, Object> map = new HashMap<>(1 << 9);
+        int n = letters.length;
         boolean[] marked = new boolean[n];
         int[] stack = new int[n << 2];
         for (int i = 0; i < n; ++i) {
             int c = letters[i];
-            int x = c & 0x1f;
-            int top = 0;
-            stack[0] = i << 4;    // j
-            stack[1] = i;         // v
-            stack[2] = c;         // c
-            stack[3] = x;         // x
-            marked[i] = true;
-            while (top >= 0) {
-                int w = tray[stack[top]];
-                if (w != -1) {
-                    ++stack[top | 0];   // ++j
-                    if (!marked[w]) {
-                        if (top < 20) {
-                            
-                        } else if (top == 24) {
-                            
-                        } else {
-                            
-                        }
-                        c = letters[w];
-                        x = 27 * stack[top | 3] + (c & 0x1f);
-                        int q = (bt[x >> 4] >> (x << 1)) & 0b11;
-                        if (q != ABSENT) {
-                            if (q == WORD) {
-                                String word = btWords.get(x);
-                                if (map.put(word, PRESENT) == null)
-                                    list.add(word);
+            int x = get(0, c);
+            if (x != 0) {
+                int top = 0;
+                stack[0] = i << 4;
+                stack[1] = i;
+                stack[2] = c;
+                stack[3] = x;
+                marked[i] = true;
+                while (top >= 0) {
+                    int w = tray[stack[top]];
+                    if (w != -1) {
+                        ++stack[top | 0];
+                        if (!marked[w]) {
+                            c = letters[w];
+                            x = get(stack[top | 3], c);
+                            if (x != 0) {
+                                int q = tst[x] >>> 8;
+                                if (q != 0) {
+                                    String word = words[q];
+                                    if (map.put(word, PRESENT) == null)
+                                        list.add(word);
+                                }
+                                top += 4;
+                                stack[top | 0] = w << 4;
+                                stack[top | 1] = w;
+                                stack[top | 2] = c;
+                                stack[top | 3] = x;
+                                marked[w] = true;
                             }
-                            top += 4;
-                            stack[top | 0] = w << 4;    // j
-                            stack[top | 1] = w;         // v
-                            stack[top | 2] = c;         // c
-                            stack[top | 3] = x;         // x
-                            marked[w] = true;
                         }
+                    } else {
+                        marked[stack[top | 1]] = false;
+                        stack[top | 3] = 0; // TODO
+                        stack[top | 2] = 0; // TODO
+                        stack[top | 1] = 0; // TODO
+                        stack[top | 0] = 0; // TODO
+                        top -= 4;
                     }
-                } else {
-                    marked[stack[top | 1]] = false; // marked[v] = false
-                    stack[top | 3] = 0; // TODO
-                    stack[top | 2] = 0; // TODO
-                    stack[top | 1] = 0; // TODO
-                    stack[top | 0] = 0; // TODO
-                    top -= 4;
                 }
             }
         }
@@ -242,64 +206,6 @@ public class BoggleSolver {
         if (wordMap.containsKey(word))
             return SCORE[Math.min(word.length(), 8)];
         return 0;
-    }
-
-    private class WordFinder {
-
-        private final long[] tray;
-        private final HashSet<String> words;
-
-        private WordFinder(BoggleBoard board) {
-            int rows = board.rows();
-            int cols = board.cols();
-            tray = new long[rows * cols];
-            for (int i = 0; i < rows; ++i) {
-                for (int j = 0; j < cols; ++j) {
-                    long slot = board.getLetter(i, j);
-                    for (int di = -1, k = 8; di < 2; ++di) {
-                        int ai = i + di;
-                        if (ai < 0 || ai >= rows)
-                            continue;
-                        for (int dj = -1; dj < 2; ++dj) {
-                            if (di == 0 && dj == 0)
-                                continue;
-                            int aj = j + dj;
-                            if (aj < 0 || aj >= cols)
-                                continue;
-                            slot |= (ai * cols + aj & 0x7fL) << k;
-                            k += 7;
-                        }
-                    }
-                    tray[i * cols + j] = slot;
-                }
-            }
-            words = new HashSet<>();
-            for (int v = 0; v < tray.length; ++v)
-                findWords(v, new CharStack());
-        }
-
-        private void findWords(int v, CharStack prefix) {
-            long slot = tray[v];
-            char c = (char) (slot & 0x7f);
-            tray[v] |= 1L << 7;
-            prefix.push(c);
-            String value = "";
-            if (value != null) {
-                if (value != "")
-                    words.add(value);
-                for (slot >>>= 8; slot != 0; slot >>>= 7) {
-                    int w = (int) slot & 0x7f;
-                    if ((tray[w] & 1L << 7) == 0)
-                        findWords(w, new CharStack(prefix));
-                }
-            }
-            tray[v] &= ~(1L << 7);
-        }
-
-        private Iterable<String> getAllValidWords() {
-            return words;
-        }
-
     }
 
 }
